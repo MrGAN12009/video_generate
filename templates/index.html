@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор видео через ИИ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-info {
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: #333;
+            text-align: center;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .download-link {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .download-link.active {
+            display: block;
+        }
+
+        .download-link a {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #4caf50;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .download-link a:hover {
+            background: #45a049;
+        }
+
+        .error-message {
+            display: none;
+            padding: 15px;
+            background: #ffebee;
+            color: #c62828;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Генератор видео через ИИ</h1>
+        <p class="subtitle">Создайте видео из текстового описания</p>
+
+        <form id="videoForm">
+            <div class="form-group">
+                <label for="prompt">Описание видео:</label>
+                <textarea id="prompt" name="prompt" placeholder="Например: Крупный план чашки горячего кофе на деревянном столе, утренний свет сквозь жалюзи, мягкая глубина резкости." required></textarea>
+            </div>
+            <button type="submit" id="submitBtn">Создать видео</button>
+        </form>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-info" id="progressInfo">Ожидание...</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+        </div>
+
+        <div class="download-link" id="downloadLink">
+            <a href="#" id="downloadBtn" download onclick="handleDownload(event)">📥 Скачать видео</a>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('videoForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressInfo = document.getElementById('progressInfo');
+        const progressBar = document.getElementById('progressBar');
+        const downloadLink = document.getElementById('downloadLink');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+
+        let currentTaskId = null;
+        let statusInterval = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                showError('Пожалуйста, введите описание видео');
+                return;
+            }
+
+            // Сброс состояния
+            hideError();
+            downloadLink.classList.remove('active');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Генерация...';
+            progressContainer.classList.add('active');
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Ошибка при запуске генерации');
+                }
+
+                currentTaskId = data.task_id;
+                startStatusPolling();
+            } catch (error) {
+                showError(error.message);
+                resetForm();
+            }
+        });
+
+        function startStatusPolling() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/status/${currentTaskId}`);
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Ошибка при получении статуса');
+                    }
+
+                    updateProgress(data);
+
+                    // Разрешаем скачивание если статус completed или downloading (файл может быть уже готов)
+                    if (data.status === 'completed' || (data.status === 'downloading' && data.progress >= 95)) {
+                        clearInterval(statusInterval);
+                        downloadBtn.href = `/download/${currentTaskId}`;
+                        downloadBtn.setAttribute('data-task-id', currentTaskId); // Сохраняем task_id в атрибуте
+                        downloadLink.classList.add('active');
+                        if (data.status === 'completed') {
+                            resetForm();
+                        }
+                    } else if (data.status === 'failed' || data.status === 'error') {
+                        clearInterval(statusInterval);
+                        showError(data.message || 'Генерация не удалась');
+                        resetForm();
+                    }
+                } catch (error) {
+                    clearInterval(statusInterval);
+                    showError(error.message);
+                    resetForm();
+                }
+            }, 2000); // Проверяем статус каждые 2 секунды
+        }
+
+        function updateProgress(data) {
+            const progress = data.progress || 0;
+            const message = data.message || 'Обработка...';
+            
+            progressInfo.textContent = message;
+            progressBar.style.width = `${progress}%`;
+            progressBar.textContent = `${progress.toFixed(1)}%`;
+            
+            // Логирование для отладки
+            console.log('Статус задачи:', data.status, 'Прогресс:', progress, 'Сообщение:', message);
+        }
+
+        function resetForm() {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Создать видео';
+            // НЕ обнуляем currentTaskId, чтобы кнопка скачивания продолжала работать
+            // currentTaskId = null;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('active');
+        }
+
+        async function handleDownload(event) {
+            event.preventDefault();
+            
+            // Получаем task_id из атрибута кнопки или из переменной
+            const taskId = downloadBtn.getAttribute('data-task-id') || currentTaskId;
+            
+            if (!taskId) {
+                showError('ID задачи не найден');
+                console.error('currentTaskId:', currentTaskId, 'data-task-id:', downloadBtn.getAttribute('data-task-id'));
+                return;
+            }
+
+            try {
+                // Проверяем статус перед скачиванием
+                const statusResponse = await fetch(`/status/${taskId}`);
+                const statusData = await statusResponse.json();
+
+                if (!statusResponse.ok) {
+                    throw new Error(statusData.error || 'Ошибка при получении статуса');
+                }
+
+                if (statusData.status !== 'completed' && statusData.status !== 'downloading') {
+                    showError(`Видео ещё не готово. Статус: ${statusData.status}`);
+                    return;
+                }
+
+                // Если всё ок, переходим по ссылке
+                window.location.href = `/download/${taskId}`;
+            } catch (error) {
+                console.error('Ошибка при скачивании:', error);
+                showError(`Ошибка при скачивании: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
+
